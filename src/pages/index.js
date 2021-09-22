@@ -4,42 +4,59 @@ import { Button, Grid } from "@mui/material";
 import { useEffect, useState } from "react";
 import SearchIcon from "@mui/icons-material/Search";
 import { Controller, useForm } from "react-hook-form";
-import useSWR from "swr";
-
-const fetcher = (url) => api.get(url).then((res) => res.data);
 
 export default function Home({ advices }) {
-  const [adviceId, setAdviceId] = useState(1);
+  const [adviceId, setAdviceId] = useState(advices.id);
   const [list, setList] = useState([]);
   const [search, setSearch] = useState("");
   const [searchList, setSearchList] = useState([]);
   const { handleSubmit, control, reset } = useForm();
-
-  const { data, error } = useSWR(`/search/${search}`, fetcher);
+  const [adviceData, setAdviceData] = useState("");
 
   useEffect(() => {
-    if (error) {
-      return "Ocurrió un error";
-    }
+    if (search !== "") {
+      const getData = async () => {
+        const response = await api.get(`/search/${search}`);
+        const advices = response.data.slips;
+        setSearchList(advices);
+      };
 
-    if (!data) {
+      getData();
+    } else {
       return "Cargando datos...";
     }
   }, [search]);
 
-  const handleAddAdvice = () => {
-    const advice = advices.advice;
+  useEffect(() => {
+    const getData = async () => {
+      const response = await api.get(`/${adviceId}`);
+      console.log("response", response.data);
+      let slip = response.data.split(":");
+      const stringAdvice = slip[3];
+      const parts = stringAdvice.split("}");
+      const onlyAdvice = parts[0];
+      let adviceCompleted = "";
+      for (let arrayAdvice in onlyAdvice) {
+        if (onlyAdvice[arrayAdvice] !== '"') {
+          adviceCompleted += onlyAdvice[arrayAdvice];
+        }
+      }
+      console.log("response", adviceCompleted);
+      setAdviceData(adviceCompleted);
+    };
 
+    getData();
+  }, [adviceId]);
+
+  const handleAddAdvice = () => {
     const newAdvice = {
-      id: advices.id,
-      advice: advice,
+      advice: adviceData,
     };
     setList((prevState) => [...prevState, newAdvice]);
   };
 
   const handleNextAdvice = () => {
-    // getStaticProps(userId);
-    // setAdviceId((prevState) => prevState + 1);
+    setAdviceId((prevState) => prevState + 1);
   };
 
   const handleDeleteAdvice = (pos) => {
@@ -48,11 +65,18 @@ export default function Home({ advices }) {
     });
   };
 
+  const handleAddAdviceSearch = (pos, id) => {
+    const advice = searchList[pos];
+
+    const newAdvice = {
+      id: id,
+      advice: advice.advice,
+    };
+    setList((prevState) => [...prevState, newAdvice]);
+  };
+
   const onSubmit = async (values) => {
-    console.log("values", values);
-    if (values !== "") {
-      setSearch(values);
-    }
+    setSearch(values.search);
     reset({
       search: "",
     });
@@ -69,7 +93,7 @@ export default function Home({ advices }) {
         <Grid container spacing={5} direction="column">
           <Grid item xs={6} textAlign="center">
             <h1>Consejo del día</h1>
-            <p>{advices.advice}</p>
+            <p>{adviceData}</p>
             <Button variant="contained" onClick={handleAddAdvice}>
               Marcar como favorito
             </Button>{" "}
@@ -82,7 +106,7 @@ export default function Home({ advices }) {
             <table>
               <tbody>
                 {list.map((advice, index) => (
-                  <tr key={advice.id}>
+                  <tr key={index}>
                     <td>{advice.advice}</td>
                     <td>
                       <Button
@@ -103,7 +127,7 @@ export default function Home({ advices }) {
             <h1>Buscador de consejos</h1>
             <form onSubmit={handleSubmit(onSubmit)}>
               <div>
-                Palabra clave:
+                Palabra clave:{" "}
                 <Controller
                   name="search"
                   control={control}
@@ -126,13 +150,16 @@ export default function Home({ advices }) {
             </form>
             <p>Resultados de la búsqueda</p>
             <p>Texto</p>
-            <table>
+            <table style={{ margin: "0 auto" }}>
               <tbody>
-                {list.map((advice, index) => (
-                  <tr key={advice.id}>
+                {searchList.map((advice, index) => (
+                  <tr key={index}>
                     <td>{advice.advice}</td>
                     <td>
-                      <Button variant="contained" onClick={handleAddAdvice}>
+                      <Button
+                        variant="contained"
+                        onClick={() => handleAddAdviceSearch(index, advice.id)}
+                      >
                         Marcar como favorito
                       </Button>
                     </td>
@@ -147,7 +174,7 @@ export default function Home({ advices }) {
   );
 }
 
-export async function getStaticProps(userId) {
+export async function getStaticProps() {
   let advices = [];
   try {
     const response = await api.get();
